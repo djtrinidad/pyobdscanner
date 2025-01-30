@@ -112,8 +112,8 @@ class OBDIITool:
             response = self.connection.query(pid_range)   # ex. Query PIDS_A
             if not response.is_null():
                 bit_array = response.value
-                print("DEBUG response.value: ", bit_array)
-                for i, bit in enumerate(bit_array.bin):
+                bit_str = str(bit_array)[2:]
+                for i, bit in enumerate(bit_str):
                     if bit == "1":
                         pid_num = i + 1
                         pid_command = obd.commands.get(f"PID_{pid_num:02X}")
