@@ -55,9 +55,13 @@ class OBDIITool:
         self.live_data_tree.heading("Unit", text="Unit")
         self.live_data_tree.pack(fill="both", expand=True, padx=10, pady=10)
 
-        # Tab2 - Start/Stop Live Data
-        self.button_toggle_livedata = tk.Button(self.tab2, text="Start Live Data", command=self.start_live_data)
-        self.button_toggle_livedata.pack(pady=10)
+        # Tab2 - Start Live Data
+        self.button_start_livedata = tk.Button(self.tab2, text="Start Live Data", command=self.start_live_data)
+        self.button_start_livedata.pack(pady=10)
+
+        # Tab2 - Stop Live Data
+        self.button_stop_livedata = tk.Button(self.tab2, text="Stop Live Data", command=self.stop_live_data)
+        self.button_stop_livedata.pack(pady=10)
 
         # Notebook layout pack
         self.notebook.pack(expand=True, fill=tk.BOTH)
@@ -76,7 +80,7 @@ class OBDIITool:
 
     def connect_to_obd(self):
         try:
-            self.connection = obd.OBD()  # connect to adapter
+            self.connection = obd.OBD("COM3")  # connect to adapter
             if self.connection.is_connected():
                 self.status_label.config(text="Connected", fg="green")
                 self.get_dtcs()
@@ -107,7 +111,7 @@ class OBDIITool:
     def get_supported_pids(self):
         supported_pids = []
 
-        commands = self.connection.supported_commands()
+        commands = [cmd for cmd in self.connection.supported_commands if cmd.command.startswith(b'01')]
 
         for command in commands:
             response = self.connection.query(command)
@@ -120,17 +124,36 @@ class OBDIITool:
         return supported_pids
 
     def update_treeview(self):
+        current_items = {self.live_data_tree.item(child)["values"][0]: child for child in self.live_data_tree.get_children()}
         # clear current data
-        for row in self.live_data_tree.get_children():
-            self.live_data_tree.delete(row)
+        #for row in self.live_data_tree.get_children():
+        #    self.live_data_tree.delete(row)
 
         for pid, value in supported_pids:
-            self.live_data_tree.insert("", "end", values=(pid, value))
+            if isinstance(value, obd.Unit.Quantity):
+                value_str = f"{value.magnitude}"
+                unit_str = value.units
+            else:
+                value_str = str(value)
+                unit_str = ""
+
+            if pid in current_items:
+                self.live_data_tree.insert(current_items[pid], values=(pid, value_str, unit_str))
+            else:
+                self.live_data_tree.insert("", "end", values=(pid, value_str, unit_str))
 
     def start_live_data(self):
+        self.running = True
         self.refresh_live_data()
 
+    def stop_live_data(self):
+        self.running = False
+
     def refresh_live_data(self):
+
+        if not self.running:
+            return
+        
         # Get supported pids
         supported_pids = self.get_supported_pids()
 
