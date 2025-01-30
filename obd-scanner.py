@@ -49,8 +49,8 @@ class OBDIITool:
         self.button_clear_dtcs.pack(pady=10)
 
         # Tab2 - Treeview Live Data
-        self.live_data_tree = ttk.Treeview(self.tab2, columns=("Parameter", "Value", "Unit"), show="headings")
-        self.live_data_tree.heading("Parameter", text="Paramater")
+        self.live_data_tree = ttk.Treeview(self.tab2, columns=("PID", "Value", "Unit"), show="headings")
+        self.live_data_tree.heading("PID", text="PID")
         self.live_data_tree.heading("Value", text="Value")
         self.live_data_tree.heading("Unit", text="Unit")
         self.live_data_tree.pack(fill="both", expand=True, padx=10, pady=10)
@@ -104,36 +104,42 @@ class OBDIITool:
             except Exception as e:
                 messagebox.showerror("Error", f"Failed to clear DTCs: {e}")
 
+    def get_supported_pids(self):
+        supported_pids = []
+
+        commands = self.connection.supported_commands()
+
+        for command in commands:
+            response = self.connection.query(command)
+
+            if response.is_null():
+                continue
+
+            supported_pids.append((command.name, response.value))
+
+        return supported_pids
+
+    def update_treeview(self):
+        # clear current data
+        for row in self.live_data_tree.get_children():
+            self.live_data_tree.delete(row)
+
+        for pid, value in supported_pids:
+            self.live_data_tree.insert("", "end", values=(pid, value))
+
     def start_live_data(self):
-        pid_ranges = [obd.commands.PIDS_A, obd.commands.PIDS_B, obd.commands.PIDS_C]
-        self.supported_pids = []  # Create empty list
+        self.refresh_live_data()
 
-        for pid_range in pid_ranges:   # Breakdown individual PIDS_X
-            response = self.connection.query(pid_range)   # ex. Query PIDS_A
-            if not response.is_null():
-                bit_array = response.value
-                bit_str = str(bit_array)[2:]
-                for i, bit in enumerate(bit_str):
-                    if bit == "1":
-                        pid_num = i + 1
-                        pid_command = obd.commands.get(f"PID_{pid_num:02X}")
-                        if pid_command:
-                            self.supported_pids.append(pid_command)
+    def refresh_live_data(self):
+        # Get supported pids
+        supported_pids = self.get_supported_pids()
 
-        for pid_command in self.supported_pids:
-            self.live_data_tree.insert("", tk.END, values=(pid_command.command, pid_command.name, "Waiting..."))
-            
-        self.update_live_data()
+        # Update the Treeview with the latest data
+        self.update_treeview(supported_pids)
 
-    def update_live_data(self):
-        for i, pid_command in enumerate(self.supported_pids):
-            response = self.connection.query(pid_command)
-            if not response.is_null():
-                value = response.value
-                # update the treeview row
-                self.live_data_tree.set(self.live_data_tree.get_children()[i], "Value", f"{value}")
+        # Re-run this function after 1000ms (1 second)
+        self.root.after(1000, self.refresh_live_data)
 
-        self.root.after(1000, self.update_live_data)
 
 # Run the application
 if __name__ == "__main__":
