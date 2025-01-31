@@ -12,6 +12,9 @@ class OBDIITool:
         # OBD Connection Setup
         self.connection = None
 
+        # Create list for item_ids
+        self.item_ids = []
+
         # Create the menubar
         self.menu_bar = Menu(root)
         self.file_menu = Menu(self.menu_bar, tearoff=0)
@@ -123,45 +126,37 @@ class OBDIITool:
 
         return supported_pids
 
-    def update_treeview(self):
-        current_items = {self.live_data_tree.item(child)["values"][0]: child for child in self.live_data_tree.get_children()}
-        # clear current data
-        #for row in self.live_data_tree.get_children():
-        #    self.live_data_tree.delete(row)
+    def update_treeview(self, commands):
 
-        for pid, value in supported_pids:
-            if isinstance(value, obd.Unit.Quantity):
-                value_str = f"{value.magnitude}"
-                unit_str = value.units
+        for i, cmd in enumerate(commands):
+            reponse = self.connection.query(cmd)
+            if response.value:
+                value = response.value.magnitude
+                unit = response.value.units
             else:
-                value_str = str(value)
-                unit_str = ""
+                value = 'N/A'
+                unit = 'N/A'
 
-            if pid in current_items:
-                self.live_data_tree.insert(current_items[pid], values=(pid, value_str, unit_str))
-            else:
-                self.live_data_tree.insert("", "end", values=(pid, value_str, unit_str))
+            self.live_data_tree.insert(self.item_ids[i], value=(cmd.name, value, unit))
+
+        self.root.afer(1000, self.update_treeview)
 
     def start_live_data(self):
         self.running = True
-        self.refresh_live_data()
+
+        commands = [cmd for cmd in self.connection.supported_commands if cmd.command.startswith(b'01')]
+        for i, command in enumerate(commands):
+            response = self.connection.query(command)
+            value = response.value.magnitude if response.value else 'N/A'
+            unit = response.value.units if response.value else 'N/A'
+            self.item_ids.append(self.live_data_tree.insert('', tk.END, command.name, value, unit))
+
+        self.update_treeview(commands)
+            
+
 
     def stop_live_data(self):
         self.running = False
-
-    def refresh_live_data(self):
-
-        if not self.running:
-            return
-        
-        # Get supported pids
-        supported_pids = self.get_supported_pids()
-
-        # Update the Treeview with the latest data
-        self.update_treeview(supported_pids)
-
-        # Re-run this function after 1000ms (1 second)
-        self.root.after(1000, self.refresh_live_data)
 
 
 # Run the application
