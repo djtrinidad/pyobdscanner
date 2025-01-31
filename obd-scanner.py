@@ -111,20 +111,6 @@ class OBDIITool:
             except Exception as e:
                 messagebox.showerror("Error", f"Failed to clear DTCs: {e}")
 
-    def get_supported_pids(self):
-        supported_pids = []
-
-        commands = [cmd for cmd in self.connection.supported_commands if cmd.command.startswith(b'01')]
-
-        for command in commands:
-            response = self.connection.query(command)
-
-            if response.is_null():
-                continue
-
-            supported_pids.append((command.name, response.value))
-
-        return supported_pids
 
     def update_treeview(self, commands):
 
